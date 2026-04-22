@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'edit_invoice_screen.dart';
+import 'login_screen.dart'; // <--- PASTIKAN FILE INI ADA
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -21,8 +22,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   bool _isLoading = false;
   DateTime? _selectedDate;
 
-  // --- TAMBAHAN: State untuk navigasi Tab ---
-  int _activeTab = 0; // 0 untuk Antrean, 1 untuk Riwayat
+  int _activeTab = 0;
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = "";
 
   @override
   void initState() {
@@ -30,11 +32,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _fetchOrdersFromWeb();
   }
 
-  // Mengambil data (disesuaikan untuk mengambil semua/sesuai tab jika API mendukung)
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   Future<void> _fetchOrdersFromWeb() async {
     setState(() => _isLoading = true);
     try {
-      // Kamu bisa sesuaikan endpoint ini jika ada api khusus riwayat (misal /api/invoice/history)
       final response =
           await http.get(Uri.parse('http://10.0.2.2:8000/api/invoice/pending'));
       if (response.statusCode == 200) {
@@ -69,11 +75,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (picked != null) setState(() => _selectedDate = picked);
   }
 
-  // --- LOGIKA FILTER: Tanggal + Status (Antrean vs Riwayat) ---
   List<dynamic> get _filteredOrders {
     List<dynamic> list = _orders;
 
-    // Filter berdasarkan Tab
     if (_activeTab == 0) {
       list = list
           .where((o) => o['status']?.toString().toLowerCase() != 'paid')
@@ -84,7 +88,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
           .toList();
     }
 
-    // Filter berdasarkan Tanggal
+    if (_searchQuery.isNotEmpty) {
+      list = list.where((order) {
+        final invNumber =
+            (order['invoice_number'] ?? "").toString().toLowerCase();
+        final clientName = (order['shipping'] != null &&
+                order['shipping']['recipient_name'] != null)
+            ? order['shipping']['recipient_name'].toString().toLowerCase()
+            : "pelanggan baru";
+        final query = _searchQuery.toLowerCase();
+        return invNumber.contains(query) || clientName.contains(query);
+      }).toList();
+    }
+
     if (_selectedDate == null) return list;
     return list.where((order) {
       DateTime orderDate = DateTime.parse(order['created_at']);
@@ -94,32 +110,115 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }).toList();
   }
 
+  // --- DESAIN PROFIL BARU ---
   void _showProfile(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(25),
+            boxShadow: const [
+              BoxShadow(
+                  color: Colors.black12, blurRadius: 20, offset: Offset(0, 10)),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: kAccent, width: 3),
+                ),
+                child: const CircleAvatar(
+                  radius: 40,
+                  backgroundColor: kPrimary,
+                  child: Icon(Icons.person, size: 40, color: Colors.white),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                "Admin Alkes Mamed",
+                style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.bold, fontSize: 18, color: kPrimary),
+              ),
+              Text(
+                "admin@mamed.com",
+                style: GoogleFonts.poppins(color: Colors.grey, fontSize: 13),
+              ),
+              const SizedBox(height: 20),
+              const Divider(),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(context); // Tutup Dialog Profil
+                    _showLogoutConfirmation(context); // Buka Dialog Konfirmasi
+                  },
+                  icon: const Icon(Icons.logout_rounded,
+                      color: Colors.white, size: 20),
+                  label: Text("Logout dari Akun",
+                      style: GoogleFonts.poppins(
+                          fontWeight: FontWeight.w600, color: Colors.white)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.redAccent,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    elevation: 0,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // --- POP UP KONFIRMASI LOGOUT ---
+  void _showLogoutConfirmation(BuildContext context) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const CircleAvatar(
-                radius: 40,
-                backgroundColor: kPrimary,
-                child: Icon(Icons.person, size: 40, color: Colors.white)),
-            const SizedBox(height: 15),
-            Text("Admin Alkes Mamed",
-                style: GoogleFonts.poppins(
-                    fontWeight: FontWeight.bold, fontSize: 18)),
-            const Text("admin@mamed.com", style: TextStyle(color: Colors.grey)),
-            const Divider(height: 30),
-            ListTile(
-              leading: const Icon(Icons.logout, color: Colors.red),
-              title: const Text("Keluar Aplikasi",
-                  style: TextStyle(color: Colors.red)),
-              onTap: () => Navigator.pop(context),
+        title: Text("Konfirmasi Logout",
+            style: GoogleFonts.poppins(fontWeight: FontWeight.bold)),
+        content: Text("Apakah Anda yakin ingin keluar dari aplikasi?",
+            style: GoogleFonts.poppins()),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child:
+                Text("Batal", style: GoogleFonts.poppins(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              // Kembali ke halaman Login & hapus semua tumpukan halaman
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (context) => const LoginScreen()),
+                (route) => false,
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
             ),
-          ],
-        ),
+            child: Text("Ya, Keluar",
+                style: GoogleFonts.poppins(
+                    color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
       ),
     );
   }
@@ -235,7 +334,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
 
-          // --- TAMBAHAN: TAB SWITCHER (Antrean vs Riwayat) ---
+          // TAB SWITCHER
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
@@ -254,45 +353,123 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
 
-          // FILTER TANGGAL
+          // SEARCH BAR & FILTER
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 5),
-              child: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(15)),
-                child: Row(
-                  children: [
-                    const SizedBox(width: 10),
-                    Icon(Icons.calendar_today,
-                        size: 18, color: kPrimary.withOpacity(0.5)),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                          _selectedDate == null
-                              ? "Semua Tanggal"
-                              : DateFormat('dd MMM yyyy')
-                                  .format(_selectedDate!),
-                          style: GoogleFonts.poppins(
-                              fontSize: 13, color: kPrimary)),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Container(
+                      height: 50,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(15),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.02),
+                            blurRadius: 5,
+                            offset: const Offset(0, 2),
+                          )
+                        ],
+                      ),
+                      child: TextField(
+                        controller: _searchController,
+                        onChanged: (value) {
+                          setState(() {
+                            _searchQuery = value;
+                          });
+                        },
+                        style: GoogleFonts.poppins(fontSize: 14),
+                        decoration: InputDecoration(
+                          hintText: "Cari ID, Nama Klien...",
+                          hintStyle: GoogleFonts.poppins(
+                              fontSize: 13, color: Colors.grey),
+                          prefixIcon: const Icon(Icons.search,
+                              color: Colors.grey, size: 20),
+                          suffixIcon: _searchQuery.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.close,
+                                      size: 18, color: Colors.grey),
+                                  onPressed: () {
+                                    _searchController.clear();
+                                    setState(() {
+                                      _searchQuery = "";
+                                    });
+                                  },
+                                )
+                              : null,
+                          border: InputBorder.none,
+                          contentPadding:
+                              const EdgeInsets.symmetric(vertical: 15),
+                        ),
+                      ),
                     ),
-                    if (_selectedDate != null)
-                      IconButton(
-                          icon: const Icon(Icons.close,
-                              size: 16, color: Colors.red),
-                          onPressed: () =>
-                              setState(() => _selectedDate = null)),
-                    TextButton(
-                        onPressed: _pickDate, child: const Text("Pilih")),
-                  ],
-                ),
+                  ),
+                  const SizedBox(width: 10),
+                  GestureDetector(
+                    onTap: _selectedDate == null ? _pickDate : null,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeInOut,
+                      height: 50,
+                      padding: EdgeInsets.symmetric(
+                          horizontal: _selectedDate == null ? 0 : 12),
+                      width: _selectedDate == null ? 50 : null,
+                      decoration: BoxDecoration(
+                        color: _selectedDate == null ? Colors.white : kPrimary,
+                        borderRadius: BorderRadius.circular(15),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.02),
+                            blurRadius: 5,
+                            offset: const Offset(0, 2),
+                          )
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.calendar_month_rounded,
+                            color: _selectedDate == null
+                                ? kPrimary.withOpacity(0.6)
+                                : kAccent,
+                            size: 22,
+                          ),
+                          if (_selectedDate != null) ...[
+                            const SizedBox(width: 8),
+                            Text(
+                              DateFormat('dd MMM').format(_selectedDate!),
+                              style: GoogleFonts.poppins(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            GestureDetector(
+                              onTap: () => setState(() => _selectedDate = null),
+                              child: Container(
+                                padding: const EdgeInsets.all(2),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.2),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.close,
+                                    size: 14, color: Colors.white),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
 
-          // LIST HEADER
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(25, 15, 25, 10),
@@ -304,19 +481,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
 
-          // LIST DATA
           SliverPadding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             sliver: _isLoading
                 ? const SliverToBoxAdapter(
                     child: Center(child: CircularProgressIndicator()))
                 : _filteredOrders.isEmpty
-                    ? const SliverToBoxAdapter(
+                    ? SliverToBoxAdapter(
                         child: Center(
                             child: Padding(
-                                padding: EdgeInsets.all(40),
-                                child: Text("Data tidak ditemukan",
-                                    style: TextStyle(color: Colors.grey)))))
+                                padding: const EdgeInsets.all(40),
+                                child: Column(
+                                  children: [
+                                    Icon(Icons.search_off_rounded,
+                                        size: 50, color: Colors.grey.shade300),
+                                    const SizedBox(height: 10),
+                                    Text("Data tidak ditemukan",
+                                        style: GoogleFonts.poppins(
+                                            color: Colors.grey)),
+                                  ],
+                                ))))
                     : SliverList(
                         delegate: SliverChildBuilderDelegate((context, index) {
                           return _buildOrderCard(_filteredOrders[index]);
@@ -329,7 +513,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // --- HELPER: WIDGET UNTUK TAB ITEM ---
   Widget _buildTabItem(int index, String title) {
     bool isActive = _activeTab == index;
     return Expanded(
