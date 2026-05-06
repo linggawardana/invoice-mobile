@@ -5,7 +5,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
 class PdfInvoiceService {
-  // Menggunakan warna Navy Blue & Gold agar serasi dengan Dashboard
+  // Palet Warna Brand
   static final PdfColor kPrimaryColor = PdfColor.fromHex('#11213D');
   static final PdfColor kAccentColor = PdfColor.fromHex('#F9C895');
   static final PdfColor kGreyColor = PdfColor.fromHex('#757575');
@@ -16,6 +16,12 @@ class PdfInvoiceService {
     required List<Map<String, dynamic>> items,
   }) async {
     final pdf = pw.Document();
+
+    // Memuat Font agar identik dengan UI Aplikasi
+    final fontRegular = await PdfGoogleFonts.poppinsRegular();
+    final fontBold = await PdfGoogleFonts.poppinsBold();
+    final fontItalic = await PdfGoogleFonts.poppinsItalic();
+
     final formatter = NumberFormat.currency(
       locale: 'id',
       symbol: 'Rp ',
@@ -25,101 +31,97 @@ class PdfInvoiceService {
     pdf.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
-        margin: const pw.EdgeInsets.all(40), // Margin profesional standar A4
+        margin: const pw.EdgeInsets.all(40),
+        theme: pw.ThemeData.withFont(
+          base: fontRegular,
+          bold: fontBold,
+          italic: fontItalic,
+        ),
         build: (pw.Context context) {
           return [
-            _buildHeader(orderData),
-            pw.SizedBox(height: 30),
-            _buildCustomerInfo(orderData),
-            pw.SizedBox(height: 30),
-            _buildTable(items, formatter),
+            _buildHeader(orderData, fontBold, fontItalic),
+            pw.SizedBox(height: 25),
+            _buildCustomerInfo(orderData, fontBold),
+            pw.SizedBox(height: 25),
+            _buildTable(items, formatter, fontBold),
             pw.SizedBox(height: 20),
-            _buildTotal(orderData, formatter),
-            pw.SizedBox(height: 50),
-            _buildSignature(),
+            _buildTotal(orderData, formatter, fontBold),
+            pw.SizedBox(height: 40),
+            _buildSignature(fontBold),
           ];
         },
-        footer: (pw.Context context) => _buildFooter(),
+        footer: (pw.Context context) => _buildFooter(fontItalic),
       ),
     );
 
+    // Langsung buka preview cetak
     await Printing.layoutPdf(
       onLayout: (PdfPageFormat format) async => pdf.save(),
       name: 'Invoice_${orderData['invoice_number']}',
     );
   }
 
-  // --- KOMPONEN HEADER (IDENTITAS PERUSAHAAN) ---
-  static pw.Widget _buildHeader(Map<String, dynamic> orderData) {
+  // --- HEADER: Identitas PT & Judul Invoice ---
+  static pw.Widget _buildHeader(
+      Map<String, dynamic> orderData, pw.Font fontBold, pw.Font fontItalic) {
     return pw.Row(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
       children: [
-        // Kiri: Info Perusahaan
-        pw.Expanded(
-          child: pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pw.Text(
-                "PT. MAMED INDONESIA GROUP",
-                style: pw.TextStyle(
-                  color: kPrimaryColor,
-                  fontSize: 18,
-                  fontWeight: pw.FontWeight.bold,
-                ),
-              ),
-              pw.SizedBox(height: 4),
-              pw.Text(
-                "Perdagangan & Distribusi Alat Medis",
-                style: pw.TextStyle(
+        pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Text(
+              "PT. MAMED INDONESIA GROUP",
+              style: pw.TextStyle(
+                  color: kPrimaryColor, fontSize: 18, font: fontBold),
+            ),
+            pw.SizedBox(height: 2),
+            pw.Text(
+              "Perdagangan & Distribusi Alat Medis",
+              style: pw.TextStyle(
                   color: kAccentColor,
                   fontSize: 10,
-                  fontStyle: pw.FontStyle.italic,
-                  fontWeight: pw.FontWeight.bold,
-                ),
-              ),
-              pw.SizedBox(height: 8),
-              pw.Text("Jl. Muwuh, Sumberagung, Plaosan, Magetan",
-                  style: const pw.TextStyle(fontSize: 9)),
-              pw.Text("Telp: 082332116115 / 085784899882",
-                  style: const pw.TextStyle(fontSize: 9)),
-              pw.Text("Email: medicalmagetan@gmail.com",
-                  style: const pw.TextStyle(fontSize: 9)),
-            ],
-          ),
+                  font: fontBold,
+                  fontStyle: pw.FontStyle.italic),
+            ),
+            pw.SizedBox(height: 8),
+            pw.Text("Jl. Muwuh, Sumberagung, Plaosan, Magetan",
+                style: const pw.TextStyle(fontSize: 9)),
+            pw.Text("WhatsApp: 0823-3211-6115",
+                style: const pw.TextStyle(fontSize: 9)),
+            pw.Text("Email: medicalmagetan@gmail.com",
+                style: const pw.TextStyle(fontSize: 9)),
+          ],
         ),
-        // Kanan: Tulisan INVOICE besar
         pw.Column(
           crossAxisAlignment: pw.CrossAxisAlignment.end,
           children: [
             pw.Text(
               "INVOICE",
               style: pw.TextStyle(
-                fontSize: 32,
-                fontWeight: pw.FontWeight.bold,
-                color: kPrimaryColor,
-                letterSpacing: 2,
-              ),
+                  fontSize: 32,
+                  font: fontBold,
+                  color: kPrimaryColor,
+                  letterSpacing: 2),
             ),
             pw.SizedBox(height: 10),
             pw.Container(
-              padding:
-                  const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              padding: const pw.EdgeInsets.all(8),
               decoration: pw.BoxDecoration(
                 color: kLightGrey,
-                borderRadius: pw.BorderRadius.circular(5),
+                borderRadius: pw.BorderRadius.circular(4),
                 border: pw.Border.all(color: kPrimaryColor, width: 0.5),
               ),
               child: pw.Column(
                 crossAxisAlignment: pw.CrossAxisAlignment.end,
                 children: [
                   pw.Text("No. Faktur: ${orderData['invoice_number']}",
-                      style: pw.TextStyle(
-                          fontWeight: pw.FontWeight.bold, fontSize: 10)),
+                      style: pw.TextStyle(font: fontBold, fontSize: 9)),
                   pw.SizedBox(height: 2),
                   pw.Text(
-                      "Tanggal: ${DateFormat('dd MMMM yyyy', 'id').format(DateTime.now())}",
-                      style: const pw.TextStyle(fontSize: 9)),
+                      "Tanggal: ${DateFormat('dd MMM yyyy', 'id').format(DateTime.now())}",
+                      style: const pw.TextStyle(fontSize: 8)),
                 ],
               ),
             ),
@@ -129,66 +131,52 @@ class PdfInvoiceService {
     );
   }
 
-  // --- KOMPONEN INFO PELANGGAN ---
-  static pw.Widget _buildCustomerInfo(Map<String, dynamic> orderData) {
-    return pw.Row(
-      children: [
-        pw.Expanded(
-          child: pw.Container(
-            padding: const pw.EdgeInsets.all(12),
-            decoration: pw.BoxDecoration(
-              border: pw.Border(
-                  left: pw.BorderSide(color: kPrimaryColor, width: 3)),
-              color: kLightGrey,
-            ),
-            child: pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                pw.Text("TAGIHAN KEPADA:",
-                    style: pw.TextStyle(
-                        fontSize: 9,
-                        color: kGreyColor,
-                        fontWeight: pw.FontWeight.bold)),
-                pw.SizedBox(height: 4),
-                pw.Text(
-                  orderData['recipient_name'] ?? "Nama Pelanggan / Instansi",
-                  style: pw.TextStyle(
-                      fontSize: 14,
-                      fontWeight: pw.FontWeight.bold,
-                      color: kPrimaryColor),
-                ),
-                pw.SizedBox(height: 4),
-                pw.Text("No. Telp : ${orderData['phone'] ?? '-'}",
-                    style: const pw.TextStyle(fontSize: 10)),
-                pw.Text("Alamat   : ${orderData['address'] ?? '-'}",
-                    style: const pw.TextStyle(fontSize: 10)),
-              ],
-            ),
-          ),
-        ),
-        pw.SizedBox(width: 80), // Spacer agar tidak terlalu penuh
-      ],
+  // --- INFO PELANGGAN: Kartu Nama Penerima ---
+  static pw.Widget _buildCustomerInfo(
+      Map<String, dynamic> orderData, pw.Font fontBold) {
+    return pw.Container(
+      width: double.infinity,
+      padding: const pw.EdgeInsets.all(12),
+      decoration: pw.BoxDecoration(
+        color: kLightGrey,
+        border: pw.Border(left: pw.BorderSide(color: kAccentColor, width: 4)),
+      ),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text("INFORMASI PENAGIHAN:",
+              style:
+                  pw.TextStyle(fontSize: 8, color: kGreyColor, font: fontBold)),
+          pw.SizedBox(height: 5),
+          pw.Text(orderData['recipient_name'] ?? "Pelanggan Umum",
+              style: pw.TextStyle(
+                  fontSize: 13, font: fontBold, color: kPrimaryColor)),
+          pw.SizedBox(height: 2),
+          pw.Text("Telp: ${orderData['phone'] ?? '-'}",
+              style: const pw.TextStyle(fontSize: 10)),
+          pw.Text("Alamat: ${orderData['address'] ?? '-'}",
+              style: const pw.TextStyle(fontSize: 10)),
+        ],
+      ),
     );
   }
 
-  // --- KOMPONEN TABEL BARANG ---
-  static pw.Widget _buildTable(
-      List<Map<String, dynamic>> items, NumberFormat formatter) {
+  // --- TABEL: Daftar Produk ---
+  static pw.Widget _buildTable(List<Map<String, dynamic>> items,
+      NumberFormat formatter, pw.Font fontBold) {
     return pw.TableHelper.fromTextArray(
+      // INI PERBAIKANNYA: Langsung panggil .all atau buat custom border
       border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.5),
-      headerStyle: pw.TextStyle(
-          color: PdfColors.white, fontWeight: pw.FontWeight.bold, fontSize: 10),
+
+      headerStyle:
+          pw.TextStyle(color: PdfColors.white, font: fontBold, fontSize: 10),
       headerDecoration: pw.BoxDecoration(color: kPrimaryColor),
-      cellHeight: 30,
-      cellPadding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      cellStyle: const pw.TextStyle(fontSize: 10),
-      columnWidths: {
-        0: const pw.FixedColumnWidth(30), // No
-        1: const pw.FlexColumnWidth(3), // Deskripsi Barang
-        2: const pw.FixedColumnWidth(40), // Qty
-        3: const pw.FixedColumnWidth(80), // Harga Satuan
-        4: const pw.FixedColumnWidth(90), // Total
-      },
+      rowDecoration: const pw.BoxDecoration(
+        border: pw.Border(
+          bottom: pw.BorderSide(color: PdfColors.grey200, width: 0.5),
+        ),
+      ),
+      cellHeight: 25,
       cellAlignments: {
         0: pw.Alignment.center,
         1: pw.Alignment.centerLeft,
@@ -196,11 +184,11 @@ class PdfInvoiceService {
         3: pw.Alignment.centerRight,
         4: pw.Alignment.centerRight,
       },
-      headers: ['NO', 'DESKRIPSI BARANG', 'QTY', 'HARGA SATUAN', 'TOTAL HARGA'],
+      headers: ['NO', 'DESKRIPSI BARANG', 'QTY', 'HARGA', 'TOTAL'],
       data: List<List<String>>.generate(items.length, (index) {
         final item = items[index];
-        final int price = (item['price'] as num).toInt();
-        final int qty = (item['qty'] as num).toInt();
+        final price = item['price'] ?? 0;
+        final qty = item['qty'] ?? 0;
         return [
           (index + 1).toString(),
           item['product'].toString(),
@@ -212,77 +200,68 @@ class PdfInvoiceService {
     );
   }
 
-  // --- KOMPONEN TOTAL HARGA ---
-  static pw.Widget _buildTotal(
-      Map<String, dynamic> orderData, NumberFormat formatter) {
-    return pw.Container(
-      alignment: pw.Alignment.centerRight,
-      child: pw.Container(
-        width: 200,
-        child: pw.Column(
-          children: [
-            pw.Divider(color: kPrimaryColor, thickness: 1.5),
-            pw.Row(
-              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-              children: [
-                pw.Text("TOTAL TAGIHAN",
-                    style: pw.TextStyle(
-                        fontWeight: pw.FontWeight.bold,
-                        fontSize: 12,
-                        color: kPrimaryColor)),
-                pw.Text(
-                  formatter.format(orderData['grand_total'] ?? 0),
-                  style: pw.TextStyle(
-                      fontWeight: pw.FontWeight.bold,
-                      fontSize: 14,
-                      color: kPrimaryColor),
-                ),
-              ],
-            ),
-            pw.Divider(color: kPrimaryColor, thickness: 1.5),
-          ],
+  // --- TOTAL: Perhitungan Akhir ---
+  static pw.Widget _buildTotal(Map<String, dynamic> orderData,
+      NumberFormat formatter, pw.Font fontBold) {
+    return pw.Row(
+      mainAxisAlignment: pw.MainAxisAlignment.end,
+      children: [
+        pw.Container(
+          width: 210,
+          child: pw.Column(
+            children: [
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text("GRAND TOTAL",
+                      style: pw.TextStyle(
+                          font: fontBold, fontSize: 12, color: kPrimaryColor)),
+                  pw.Text(formatter.format(orderData['grand_total'] ?? 0),
+                      style: pw.TextStyle(
+                          font: fontBold, fontSize: 14, color: kPrimaryColor)),
+                ],
+              ),
+              pw.SizedBox(height: 5),
+              pw.Divider(color: kAccentColor, thickness: 2),
+            ],
+          ),
         ),
-      ),
+      ],
     );
   }
 
-  // --- KOMPONEN TANDA TANGAN ---
-  static pw.Widget _buildSignature() {
+  // --- SIGNATURE: Tanda Tangan Direktur ---
+  static pw.Widget _buildSignature(pw.Font fontBold) {
     return pw.Row(
       mainAxisAlignment: pw.MainAxisAlignment.end,
       children: [
         pw.Column(
-          crossAxisAlignment: pw.CrossAxisAlignment.center,
           children: [
-            pw.Text("Hormat Kami,", style: const pw.TextStyle(fontSize: 11)),
-            pw.SizedBox(height: 60), // Space untuk cap/tanda tangan asli
-            pw.Text(
-              "Danar Setiawan",
-              style: pw.TextStyle(
-                  fontWeight: pw.FontWeight.bold,
-                  fontSize: 12,
-                  decoration: pw.TextDecoration.underline),
-            ),
-            pw.Text("Direktur",
+            pw.Text("Hormat Kami,", style: const pw.TextStyle(fontSize: 10)),
+            pw.SizedBox(height: 50),
+            pw.Text("DANAR SETIAWAN",
+                style: pw.TextStyle(
+                    font: fontBold,
+                    fontSize: 11,
+                    decoration: pw.TextDecoration.underline)),
+            pw.Text("Direktur Utama",
                 style:
-                    const pw.TextStyle(fontSize: 10, color: PdfColors.grey700)),
+                    const pw.TextStyle(fontSize: 9, color: PdfColors.grey700)),
           ],
         ),
       ],
     );
   }
 
-  // --- KOMPONEN FOOTER BAWAH ---
-  static pw.Widget _buildFooter() {
+  // --- FOOTER: Terima Kasih ---
+  static pw.Widget _buildFooter(pw.Font fontItalic) {
     return pw.Column(
-      crossAxisAlignment: pw.CrossAxisAlignment.center,
       children: [
         pw.Divider(color: PdfColors.grey300),
         pw.SizedBox(height: 5),
         pw.Text(
-          "Terima kasih atas kepercayaan Anda bermitra dengan PT. Mamed Indonesia Group.",
-          style: pw.TextStyle(
-              fontSize: 9, color: kGreyColor, fontStyle: pw.FontStyle.italic),
+          "Dokumen ini diterbitkan secara resmi oleh sistem PT. Mamed Indonesia Group",
+          style: pw.TextStyle(fontSize: 7, color: kGreyColor, font: fontItalic),
         ),
       ],
     );

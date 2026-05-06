@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'register_screen.dart';
-import 'dashboard_screen.dart'; // TAMBAHKAN INI
+import 'dashboard_screen.dart';
 
 class LoginScreen extends StatelessWidget {
   const LoginScreen({super.key});
@@ -23,25 +23,21 @@ class LoginScreen extends StatelessWidget {
             children: [
               const SizedBox(height: 60),
               Center(
-                child:
-                    Container(
-                          height: 140,
-                          width: 140,
-                          decoration: const BoxDecoration(
-                            shape: BoxShape.circle,
-                            image: DecorationImage(
-                              image: AssetImage('assets/images/logo_mig.png'),
-                              fit: BoxFit.contain,
-                            ),
-                          ),
-                        )
-                        .animate()
-                        .fadeIn(duration: 600.ms)
-                        .scale(
-                          delay: 200.ms,
-                          duration: 500.ms,
-                          curve: Curves.easeOutBack,
-                        ),
+                child: Container(
+                  height: 140,
+                  width: 140,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    image: DecorationImage(
+                      image: AssetImage('assets/images/logo_mig.png'),
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                ).animate().fadeIn(duration: 600.ms).scale(
+                      delay: 200.ms,
+                      duration: 500.ms,
+                      curve: Curves.easeOutBack,
+                    ),
               ),
               const SizedBox(height: 40),
               Text(
@@ -85,38 +81,36 @@ class LoginScreen extends StatelessWidget {
               _buildFieldInput("Password", isSecret: true),
               const SizedBox(height: 30),
               SizedBox(
-                    width: double.infinity,
-                    height: 55,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        // NAVIGASI KE DASHBOARD
-                        Navigator.pushAndRemoveUntil(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const DashboardScreen(),
-                          ),
-                          (route) => false,
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: colorAccentOrange,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
+                width: double.infinity,
+                height: 55,
+                child: ElevatedButton(
+                  onPressed: () {
+                    // NAVIGASI KE DASHBOARD
+                    Navigator.pushAndRemoveUntil(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => DashboardScreen(),
                       ),
-                      child: const Text(
-                        "Sign in",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
+                      (route) => false,
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: colorAccentOrange,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                  )
-                  .animate(onPlay: (controller) => controller.repeat())
-                  .shimmer(
+                  ),
+                  child: const Text(
+                    "Sign in",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+              ).animate(onPlay: (controller) => controller.repeat()).shimmer(
                     delay: 3.seconds,
                     duration: 1500.ms,
                     color: Colors.white24,

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:intl/date_symbol_data_local.dart'; // Tambahkan import ini
-import 'login_screen.dart';
+import 'package:alkesmamed_mobile/login_screen.dart';
 
 // Ubah main menjadi async untuk inisialisasi locale
 Future<void> main() async {

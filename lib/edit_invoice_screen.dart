@@ -18,18 +18,17 @@ class EditInvoiceScreen extends StatefulWidget {
 }
 
 class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
-  final Color kPrimary = const Color(0xFF11213D);
-  final Color kAccent = const Color(0xFFF9C895);
+  // Palet Warna Konsisten dengan Dashboard
+  static const Color kPrimary = Color(0xFF11213D);
+  static const Color kAccent = Color(0xFFF9C895);
+  static const Color kBackground = Color(0xFFF8F9FB);
 
-  // ===========================================================================
-  // DATA SUMBER DARI DATABASE (Ambil dari tabel orders & order_shippings)
-  // ===========================================================================
-  final String phone = "0812-3456-7890"; // order_shippings -> phone
-  final String address =
-      "Jl. Ahmad Yani No. 123, Sidoarjo"; // order_shippings -> full_address
-  final String orderDate = "20 April 2026"; // orders -> created_at
-  final String paymentMethod = "Midtrans"; // orders -> payment_method
-  final String notes = "Packing aman ya"; // orders -> notes
+  // Mock Data (Nanti bisa dihubungkan ke API)
+  final String phone = "0812-3456-7890";
+  final String address = "Jl. Ahmad Yani No. 123, Sidoarjo, Jawa Timur";
+  final String orderDate = "20 April 2026";
+  final String paymentMethod = "Transfer Bank (Midtrans)";
+  final String notes = "Packing kayu, pastikan segel utuh.";
 
   List<Map<String, dynamic>> items = [
     {"product": "Kursi Roda Standar", "price": 1500000, "qty": 1},
@@ -52,8 +51,8 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => const Center(
-          child: CircularProgressIndicator(color: Color(0xFF11213D))),
+      builder: (context) =>
+          const Center(child: CircularProgressIndicator(color: kPrimary)),
     );
 
     try {
@@ -69,7 +68,7 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
       );
     } catch (e) {
       ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text("Error: $e")));
+          .showSnackBar(SnackBar(content: Text("Gagal Mencetak: $e")));
     } finally {
       if (mounted) Navigator.pop(context);
     }
@@ -78,84 +77,101 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
+      backgroundColor: kBackground,
       appBar: AppBar(
         title: Text(
-          "Detail Invoice",
+          "Review & Print",
           style: GoogleFonts.poppins(
-              fontWeight: FontWeight.w600, color: kPrimary, fontSize: 18),
+              fontWeight: FontWeight.bold, color: kPrimary, fontSize: 16),
         ),
         centerTitle: true,
         backgroundColor: Colors.white,
-        elevation: 0.5,
+        elevation: 0,
         leading: IconButton(
-          icon:
-              Icon(Icons.arrow_back_ios_new_rounded, color: kPrimary, size: 20),
+          icon: const Icon(Icons.close_rounded, color: kPrimary),
           onPressed: () => Navigator.pop(context),
         ),
       ),
       body: Column(
         children: [
           Expanded(
-            child: ListView(
+            child: SingleChildScrollView(
               physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.symmetric(vertical: 20),
-              children: [
-                _buildOrderHeader(), // Menampilkan No Invoice & Tanggal
-                _buildCustomerInfoCard(), // Data Lengkap Pemesan
-                _buildSectionTitle("Daftar Barang"),
-                ...List.generate(
-                    items.length, (index) => _buildItemCard(index)),
-              ],
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: Column(
+                children: [
+                  _buildHeaderStatus(),
+                  _buildCustomerSection(),
+                  _buildItemSection(),
+                  _buildNotesSection(),
+                ],
+              ),
             ),
           ),
-          _buildBottomSummary(),
+          _buildBottomAction(),
         ],
       ),
     );
   }
 
-  Widget _buildOrderHeader() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 10),
+  Widget _buildHeaderStatus() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(25),
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      decoration: BoxDecoration(
+        color: kPrimary,
+        borderRadius: BorderRadius.circular(24),
+        image: DecorationImage(
+          image: const NetworkImage(
+              'https://www.transparenttextures.com/patterns/carbon-fibre.png'),
+          opacity: 0.1,
+          fit: BoxFit.cover,
+        ),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            widget.orderId,
-            style: GoogleFonts.exo2(
-                fontWeight: FontWeight.bold, fontSize: 24, color: kPrimary),
-          ),
-          const SizedBox(height: 4),
+          Text("INVOICE NUMBER",
+              style: GoogleFonts.poppins(
+                  color: kAccent.withOpacity(0.8),
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.5)),
+          const SizedBox(height: 5),
+          Text(widget.orderId,
+              style: GoogleFonts.exo2(
+                  color: Colors.white,
+                  fontSize: 26,
+                  fontWeight: FontWeight.bold)),
+          const SizedBox(height: 15),
           Row(
             children: [
-              Icon(Icons.calendar_today_outlined,
-                  size: 14, color: Colors.grey.shade600),
-              const SizedBox(width: 6),
-              Text(
-                "Pesanan pada $orderDate",
-                style: GoogleFonts.poppins(
-                    fontSize: 13, color: Colors.grey.shade600),
-              ),
+              const Icon(Icons.event_note_rounded,
+                  color: Colors.white54, size: 16),
+              const SizedBox(width: 8),
+              Text(orderDate,
+                  style:
+                      GoogleFonts.poppins(color: Colors.white70, fontSize: 13)),
             ],
-          ),
+          )
         ],
       ),
     );
   }
 
-  Widget _buildCustomerInfoCard() {
+  Widget _buildCustomerSection() {
     return Container(
-      margin: const EdgeInsets.fromLTRB(20, 10, 20, 20),
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
               color: Colors.black.withOpacity(0.03),
-              blurRadius: 15,
-              offset: const Offset(0, 5))
+              blurRadius: 10,
+              offset: const Offset(0, 4))
         ],
       ),
       child: Column(
@@ -163,63 +179,49 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
         children: [
           Row(
             children: [
-              Icon(Icons.person_pin_rounded, color: kPrimary, size: 22),
-              const SizedBox(width: 8),
-              Text(
-                "Informasi Pelanggan",
-                style: GoogleFonts.poppins(
-                    fontWeight: FontWeight.bold, fontSize: 15, color: kPrimary),
-              ),
+              const Icon(Icons.local_shipping_rounded,
+                  color: kPrimary, size: 20),
+              const SizedBox(width: 10),
+              Text("TUJUAN PENGIRIMAN",
+                  style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                      color: kPrimary)),
             ],
           ),
-          const Divider(height: 30, thickness: 1),
-          _infoTile(Icons.person_outline, "Nama Penerima", widget.clientName),
-          _infoTile(Icons.phone_android_outlined, "No. Telepon", phone),
-          _infoTile(Icons.location_on_outlined, "Alamat Lengkap", address),
-          _infoTile(Icons.account_balance_wallet_outlined, "Metode Pembayaran",
-              paymentMethod),
-          if (notes.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
-                  borderRadius: BorderRadius.circular(10)),
-              child: Text(
-                "Catatan: \"$notes\"",
-                style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    color: Colors.black54,
-                    fontStyle: FontStyle.italic),
-              ),
-            ),
-          ]
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 15),
+            child: Divider(height: 1),
+          ),
+          _infoLine(Icons.person, "Nama Penerima", widget.clientName),
+          _infoLine(Icons.phone, "Kontak", phone),
+          _infoLine(Icons.map, "Alamat", address),
+          _infoLine(Icons.payments, "Metode", paymentMethod),
         ],
       ),
     );
   }
 
-  Widget _infoTile(IconData icon, String label, String value) {
+  Widget _infoLine(IconData icon, String label, String value) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 15),
+      padding: const EdgeInsets.only(bottom: 12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 18, color: Colors.grey.shade400),
+          Icon(icon, size: 16, color: Colors.grey.shade400),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(label,
-                    style: GoogleFonts.poppins(
-                        fontSize: 11, color: Colors.grey.shade500)),
+                    style:
+                        GoogleFonts.poppins(fontSize: 10, color: Colors.grey)),
                 Text(value,
                     style: GoogleFonts.poppins(
-                        fontSize: 14,
-                        color: kPrimary,
-                        fontWeight: FontWeight.w500)),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: kPrimary)),
               ],
             ),
           ),
@@ -228,109 +230,151 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
     );
   }
 
-  Widget _buildSectionTitle(String title) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 10),
-      child: Text(
-        title,
-        style: GoogleFonts.poppins(
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-            color: Colors.grey.shade700),
-      ),
+  Widget _buildItemSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 10),
+          child: Text("RINCIAN PESANAN",
+              style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                  color: Colors.grey)),
+        ),
+        ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: items.length,
+          itemBuilder: (context, index) {
+            final item = items[index];
+            return Container(
+              margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 5),
+              padding: const EdgeInsets.all(15),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(15),
+                border: Border.all(color: Colors.grey.shade100),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                        color: kPrimary.withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(10)),
+                    child: Center(
+                        child: Text("${item['qty']}x",
+                            style: GoogleFonts.poppins(
+                                fontWeight: FontWeight.bold, color: kPrimary))),
+                  ),
+                  const SizedBox(width: 15),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(item['product'],
+                            style: GoogleFonts.poppins(
+                                fontWeight: FontWeight.w600, fontSize: 14)),
+                        Text(formatIDR(item['price']),
+                            style: GoogleFonts.poppins(
+                                fontSize: 12, color: Colors.grey)),
+                      ],
+                    ),
+                  ),
+                  Text(formatIDR(item['price'] * item['qty']),
+                      style: GoogleFonts.poppins(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          color: kPrimary)),
+                ],
+              ),
+            );
+          },
+        ),
+      ],
     );
   }
 
-  Widget _buildItemCard(int index) {
-    final item = items[index];
+  Widget _buildNotesSection() {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: kAccent.withOpacity(0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade100),
+        border: Border.all(color: kAccent.withOpacity(0.3)),
       ),
       child: Row(
         children: [
+          const Icon(Icons.info_outline_rounded,
+              color: Color(0xFFB8860B), size: 20),
+          const SizedBox(width: 12),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(item['product'],
-                    style: GoogleFonts.poppins(
-                        fontWeight: FontWeight.w600, fontSize: 14)),
-                Text(formatIDR(item['price']),
-                    style: GoogleFonts.poppins(
-                        fontSize: 13, color: Colors.grey.shade600)),
-              ],
+            child: Text(
+              "Catatan: \"$notes\"",
+              style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic,
+                  color: Colors.brown),
             ),
           ),
-          Text("x${item['qty']}",
-              style: GoogleFonts.poppins(
-                  fontWeight: FontWeight.bold, color: kPrimary)),
         ],
       ),
     );
   }
 
-  Widget _buildBottomSummary() {
+  Widget _buildBottomAction() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(25, 20, 25, 30),
-      decoration: const BoxDecoration(
+      padding: const EdgeInsets.fromLTRB(25, 20, 25, 35),
+      decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         boxShadow: [
           BoxShadow(
-              color: Colors.black12, blurRadius: 10, offset: Offset(0, -2))
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 20,
+              offset: const Offset(0, -5))
         ],
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _rowSummary("Total Barang", formatIDR(subtotal), false),
-          const SizedBox(height: 8),
-          _rowSummary("Biaya Kirim", formatIDR(shippingCost), false),
-          const Divider(height: 24),
-          _rowSummary("Grand Total", formatIDR(grandTotal), true),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text("Total Pembayaran",
+                  style: GoogleFonts.poppins(color: Colors.grey, fontSize: 14)),
+              Text(formatIDR(grandTotal),
+                  style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 22,
+                      color: kPrimary)),
+            ],
+          ),
           const SizedBox(height: 20),
           SizedBox(
             width: double.infinity,
-            height: 52,
-            child: ElevatedButton(
+            height: 55,
+            child: ElevatedButton.icon(
               onPressed: _handleFinalize,
+              icon: const Icon(Icons.print_rounded, color: kPrimary),
+              label: Text("CETAK SEKARANG",
+                  style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.bold,
+                      color: kPrimary,
+                      fontSize: 15)),
               style: ElevatedButton.styleFrom(
                 backgroundColor: kAccent,
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
+                    borderRadius: BorderRadius.circular(15)),
                 elevation: 0,
-              ),
-              child: Text(
-                "CETAK INVOICE SEKARANG",
-                style: GoogleFonts.poppins(
-                    fontWeight: FontWeight.bold, color: Colors.white),
               ),
             ),
           ),
         ],
       ),
-    );
-  }
-
-  Widget _rowSummary(String label, String value, bool isBold) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(label,
-            style: GoogleFonts.poppins(
-                fontSize: isBold ? 15 : 13,
-                fontWeight: isBold ? FontWeight.bold : FontWeight.normal)),
-        Text(value,
-            style: GoogleFonts.poppins(
-                fontSize: isBold ? 18 : 14,
-                fontWeight: FontWeight.bold,
-                color: isBold ? kPrimary : Colors.black87)),
-      ],
     );
   }
 }
