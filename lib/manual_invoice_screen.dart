@@ -1,7 +1,23 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'pdf_service.dart';
+
+class _InvoiceItem {
+  final TextEditingController productCtrl;
+  final TextEditingController qtyCtrl;
+  final TextEditingController priceCtrl;
+
+  _InvoiceItem({String product = '', String qty = '', String price = ''})
+      : productCtrl = TextEditingController(text: product),
+        qtyCtrl = TextEditingController(text: qty),
+        priceCtrl = TextEditingController(text: price);
+
+  void dispose() {
+    productCtrl.dispose();
+    qtyCtrl.dispose();
+    priceCtrl.dispose();
+  }
+}
 
 class ManualInvoiceScreen extends StatefulWidget {
   const ManualInvoiceScreen({super.key});
@@ -11,358 +27,582 @@ class ManualInvoiceScreen extends StatefulWidget {
 }
 
 class _ManualInvoiceScreenState extends State<ManualInvoiceScreen> {
-  // Palet Warna Konsisten
-  static const Color kPrimary = Color(0xFF11213D);
-  static const Color kAccent = Color(0xFFF9C895);
-  static const Color kBackground = Color(0xFFF8F9FB);
+  // Controller Input Customer
+  final TextEditingController _customerNameCtrl = TextEditingController();
+  final TextEditingController _customerAddressCtrl = TextEditingController();
+  final TextEditingController _customerPhoneCtrl = TextEditingController();
+  final TextEditingController _invoiceNoCtrl = TextEditingController();
+  final TextEditingController _notesCtrl = TextEditingController();
 
-  // Controller untuk Data Pelanggan
-  final TextEditingController _nameController = TextEditingController();
-  final TextEditingController _phoneController = TextEditingController();
-  final TextEditingController _addressController = TextEditingController();
-  final TextEditingController _shippingController =
-      TextEditingController(text: "0");
+  // Data input barang dinamis untuk support banyak barang
+  final List<_InvoiceItem> _items = [];
 
-  // State untuk Daftar Barang
-  List<Map<String, dynamic>> _items = [
-    {
-      "controller_name": TextEditingController(),
-      "controller_price": TextEditingController(),
-      "qty": 1
-    },
-  ];
+  // Controller DP
+  final TextEditingController _dpCtrl = TextEditingController();
 
-  // Hitung-hitungan
-  int get _subtotal {
-    int total = 0;
-    for (var item in _items) {
-      int price = int.tryParse(item['controller_price'].text) ?? 0;
-      total += price * (item['qty'] as int);
-    }
-    return total;
+  // State Variables
+  String _paymentStatus = 'Lunas'; // Default Lunas
+  String _paymentMethod = 'Transfer Bank';
+  double _grandTotal = 0;
+  double _sisaTagihan = 0;
+  String _currentDate = DateFormat('dd/MM/yyyy').format(DateTime.now());
+  final TextEditingController _dateCtrl = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _dateCtrl.text = _currentDate;
+    _items.add(_InvoiceItem());
   }
 
-  int get _shipping => int.tryParse(_shippingController.text) ?? 0;
-  int get _grandTotal => _subtotal + _shipping;
+  // Fungsi Kalkulasi Otomatis
+  void _calculateTotal() {
+    double total = 0;
 
-  void _addNewItem() {
+    for (final item in _items) {
+      final qty = double.tryParse(item.qtyCtrl.text) ?? 0;
+      final price = double.tryParse(item.priceCtrl.text) ?? 0;
+      total += qty * price;
+    }
+
+    double dp = 0;
+    if (_paymentStatus == 'DP') {
+      dp = double.tryParse(_dpCtrl.text) ?? 0;
+    } else {
+      dp = total;
+      _dpCtrl.clear();
+    }
+
     setState(() {
-      _items.add({
-        "controller_name": TextEditingController(),
-        "controller_price": TextEditingController(),
-        "qty": 1,
-      });
+      _grandTotal = total;
+      _sisaTagihan = total - dp;
+      if (_sisaTagihan < 0) _sisaTagihan = 0;
     });
   }
 
-  void _removeItem(int index) {
-    if (_items.length > 1) {
-      setState(() => _items.removeAt(index));
-    }
-  }
-
-  String _formatIDR(dynamic amount) {
-    return NumberFormat.currency(locale: 'id', symbol: 'Rp ', decimalDigits: 0)
-        .format(amount);
-  }
-
-  Future<void> _generatePDF() async {
-    // Validasi Sederhana
-    if (_nameController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Nama pelanggan wajib diisi!")));
-      return;
-    }
-
+  Future<void> _createInvoicePdf() async {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) =>
-          const Center(child: CircularProgressIndicator(color: kPrimary)),
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(color: Color(0xFF11213D)),
+      ),
     );
 
     try {
-      // Mapping data untuk PDF Service
-      List<Map<String, dynamic>> formattedItems = _items.map((item) {
-        return {
-          "product": item['controller_name'].text.isEmpty
-              ? "Produk Tanpa Nama"
-              : item['controller_name'].text,
-          "price": int.tryParse(item['controller_price'].text) ?? 0,
-          "qty": item['qty'],
-        };
-      }).toList();
+      final orderNumber = _invoiceNoCtrl.text.isEmpty
+          ? 'INV-${DateTime.now().millisecondsSinceEpoch}'
+          : _invoiceNoCtrl.text;
+      final paidAmount = _paymentStatus == 'DP'
+          ? (double.tryParse(_dpCtrl.text) ?? 0)
+          : _grandTotal;
 
       await PdfInvoiceService.generateInvoice(
         orderData: {
-          'invoice_number':
-              "INV-${DateTime.now().millisecondsSinceEpoch}", // Auto generate ID
-          'recipient_name': _nameController.text,
+          'invoice_number': orderNumber,
+          'invoice_date': _currentDate,
+          'due_date': DateFormat('dd MMM yyyy', 'id')
+              .format(DateTime.now().add(const Duration(days: 7))),
+          'recipient_name': _customerNameCtrl.text.isEmpty
+              ? 'Pelanggan Umum'
+              : _customerNameCtrl.text,
           'grand_total': _grandTotal,
-          'phone': _phoneController.text,
-          'address': _addressController.text,
+          'paid_amount': paidAmount,
+          'payment_method': _paymentMethod,
+          'payment_status': _paymentStatus,
+          'phone': _customerPhoneCtrl.text.isEmpty
+              ? '-'
+              : _customerPhoneCtrl.text,
+          'address': _customerAddressCtrl.text.isEmpty
+              ? '-'
+              : _customerAddressCtrl.text,
+          'notes': _notesCtrl.text,
         },
-        items: formattedItems,
+        items: _items
+            .where((item) => item.productCtrl.text.isNotEmpty)
+            .map((item) => {
+                  'product': item.productCtrl.text,
+                  'price': double.tryParse(item.priceCtrl.text) ?? 0,
+                  'qty': double.tryParse(item.qtyCtrl.text) ?? 0,
+                })
+            .toList(),
       );
     } catch (e) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text("Error: $e")));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Gagal membuat PDF: $e")),
+        );
+      }
+    } finally {
+      if (mounted) Navigator.pop(context);
+    }
+  }
+
+  Future<void> _downloadInvoicePdf() async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(color: Color(0xFF11213D)),
+      ),
+    );
+
+    try {
+      final orderNumber = _invoiceNoCtrl.text.isEmpty
+          ? 'INV-${DateTime.now().millisecondsSinceEpoch}'
+          : _invoiceNoCtrl.text;
+      final paidAmount = _paymentStatus == 'DP'
+          ? (double.tryParse(_dpCtrl.text) ?? 0)
+          : _grandTotal;
+
+      await PdfInvoiceService.shareInvoice(
+        orderData: {
+          'invoice_number': orderNumber,
+          'invoice_date': _currentDate,
+          'due_date': DateFormat('dd MMM yyyy', 'id')
+              .format(DateTime.now().add(const Duration(days: 7))),
+          'recipient_name': _customerNameCtrl.text.isEmpty
+              ? 'Pelanggan Umum'
+              : _customerNameCtrl.text,
+          'grand_total': _grandTotal,
+          'paid_amount': paidAmount,
+          'payment_method': _paymentMethod,
+          'payment_status': _paymentStatus,
+          'phone': _customerPhoneCtrl.text.isEmpty
+              ? '-'
+              : _customerPhoneCtrl.text,
+          'address': _customerAddressCtrl.text.isEmpty
+              ? '-'
+              : _customerAddressCtrl.text,
+          'notes': _notesCtrl.text,
+        },
+        items: _items
+            .where((item) => item.productCtrl.text.isNotEmpty)
+            .map((item) => {
+                  'product': item.productCtrl.text,
+                  'price': double.tryParse(item.priceCtrl.text) ?? 0,
+                  'qty': double.tryParse(item.qtyCtrl.text) ?? 0,
+                })
+            .toList(),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Gagal mengunduh PDF: $e")),
+        );
+      }
     } finally {
       if (mounted) Navigator.pop(context);
     }
   }
 
   @override
+  void dispose() {
+    _customerNameCtrl.dispose();
+    _customerAddressCtrl.dispose();
+    _invoiceNoCtrl.dispose();
+    for (final item in _items) {
+      item.dispose();
+    }
+    _customerPhoneCtrl.dispose();
+    _notesCtrl.dispose();
+    _dateCtrl.dispose();
+    _dpCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kBackground,
       appBar: AppBar(
-        title: Text("Buat Invoice Manual",
-            style: GoogleFonts.poppins(
-                fontWeight: FontWeight.bold, fontSize: 16, color: kPrimary)),
-        centerTitle: true,
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new_rounded,
-                color: kPrimary, size: 20),
-            onPressed: () => Navigator.pop(context)),
+        title: const Text("Buat Manual Invoice"),
+        backgroundColor: const Color(0xFF11213D),
+        foregroundColor: Colors.white,
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              physics: const BouncingScrollPhysics(),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildSectionHeader("DATA PELANGGAN"),
-                  _buildCustomerForm(),
-                  const SizedBox(height: 25),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      _buildSectionHeader("ITEM / BARANG"),
-                      TextButton.icon(
-                        onPressed: _addNewItem,
-                        icon: const Icon(Icons.add_circle_outline,
-                            color: Colors.blue, size: 18),
-                        label: Text("Tambah Item",
-                            style: GoogleFonts.poppins(
-                                color: Colors.blue,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 12)),
-                      )
-                    ],
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.grey.shade200),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.03),
+                    blurRadius: 18,
+                    offset: const Offset(0, 8),
                   ),
-                  _buildItemList(),
-                  const SizedBox(height: 25),
-                  _buildSectionHeader("PENGIRIMAN"),
-                  _buildShippingInput(),
                 ],
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    Text("CV. KIAN RAYA CEMERLANG",
+                        style: TextStyle(
+                            fontSize: 20, fontWeight: FontWeight.bold)),
+                    SizedBox(height: 6),
+                    Text(
+                      "Office: Jl. Raya Sumber Agung - Randugede No.27\nDk. Ngrandu, Ds. Sumber Agung, Kec. Plaosan\nKab. Magetan - Jawa Timur",
+                      style: TextStyle(fontSize: 12, height: 1.5),
+                    ),
+                    SizedBox(height: 10),
+                    Text("Telp: 082332116115 - 085784899882",
+                        style: TextStyle(
+                            fontSize: 12, fontWeight: FontWeight.bold)),
+                  ],
+                ),
               ),
             ),
-          ),
-          _buildSummaryBar(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSectionHeader(String title) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 5, bottom: 10),
-      child: Text(title,
-          style: GoogleFonts.poppins(
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey,
-              letterSpacing: 1.1)),
-    );
-  }
-
-  Widget _buildCustomerForm() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10)
-          ]),
-      child: Column(
-        children: [
-          _customTextField(
-              "Nama Lengkap", _nameController, Icons.person_outline),
-          const SizedBox(height: 15),
-          _customTextField(
-              "No. WhatsApp", _phoneController, Icons.phone_android_outlined,
-              isPhone: true),
-          const SizedBox(height: 15),
-          _customTextField(
-              "Alamat Pengiriman", _addressController, Icons.map_outlined,
-              maxLines: 3),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildItemList() {
-    return ListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: _items.length,
-      itemBuilder: (context, index) {
-        return Container(
-          margin: const EdgeInsets.only(bottom: 10),
-          padding: const EdgeInsets.all(15),
-          decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(15),
-              border: Border.all(color: Colors.grey.shade100)),
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                      flex: 3,
-                      child: _customTextField("Nama Barang",
-                          _items[index]['controller_name'], null)),
-                  const SizedBox(width: 10),
-                  IconButton(
-                      onPressed: () => _removeItem(index),
-                      icon: const Icon(Icons.delete_outline,
-                          color: Colors.redAccent, size: 20)),
+            const SizedBox(height: 24),
+            Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.grey.shade200),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.03),
+                    blurRadius: 18,
+                    offset: const Offset(0, 8),
+                  ),
                 ],
               ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                      flex: 2,
-                      child: _customTextField(
-                          "Harga (Rp)", _items[index]['controller_price'], null,
-                          isPhone: true)),
-                  const SizedBox(width: 15),
-                  Row(
-                    children: [
-                      _qtyBtn(Icons.remove, () {
-                        if (_items[index]['qty'] > 1)
-                          setState(() => _items[index]['qty']--);
-                      }),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        child: Text("${_items[index]['qty']}",
-                            style: GoogleFonts.poppins(
-                                fontWeight: FontWeight.bold)),
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text("Data Customer",
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                            letterSpacing: 0.3)),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                            child: _buildInput(
+                                "No. Order/INV", _invoiceNoCtrl)),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildInput("Tanggal", _dateCtrl,
+                              isReadOnly: true),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    _buildInput("Nama Customer (Instansi/Pribadi)", _customerNameCtrl),
+                    const SizedBox(height: 14),
+                    _buildInput("No. Telp Pemesan", _customerPhoneCtrl,
+                        keyboardType: TextInputType.phone),
+                    const SizedBox(height: 14),
+                    _buildInput("Alamat Customer", _customerAddressCtrl,
+                        maxLines: 2),
+                    const SizedBox(height: 14),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey.shade300),
+                        borderRadius: BorderRadius.circular(12),
+                        color: const Color(0xFFF7F9FB),
                       ),
-                      _qtyBtn(Icons.add,
-                          () => setState(() => _items[index]['qty']++)),
-                    ],
-                  )
-                ],
-              )
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildShippingInput() {
-    return Container(
-      padding: const EdgeInsets.all(15),
-      decoration: BoxDecoration(
-          color: Colors.white, borderRadius: BorderRadius.circular(15)),
-      child: _customTextField("Biaya Ongkir (Rp)", _shippingController,
-          Icons.local_shipping_outlined,
-          isPhone: true),
-    );
-  }
-
-  Widget _buildSummaryBar() {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(25, 20, 25, 35),
-      decoration: BoxDecoration(
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 20,
-                offset: const Offset(0, -5))
-          ],
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(30))),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text("Total Pembayaran",
-                  style: GoogleFonts.poppins(color: Colors.grey, fontSize: 14)),
-              Text(_formatIDR(_grandTotal),
-                  style: GoogleFonts.poppins(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 20,
-                      color: kPrimary)),
-            ],
-          ),
-          const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity,
-            height: 55,
-            child: ElevatedButton.icon(
-              onPressed: _generatePDF,
-              icon: const Icon(Icons.picture_as_pdf_rounded, color: kPrimary),
-              label: Text("SIMPAN & CETAK PDF",
-                  style: GoogleFonts.poppins(
-                      fontWeight: FontWeight.bold, color: kPrimary)),
-              style: ElevatedButton.styleFrom(
-                  backgroundColor: kAccent,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(15)),
-                  elevation: 0),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: _paymentMethod,
+                          isExpanded: true,
+                          items: const [
+                            DropdownMenuItem(
+                                value: 'Transfer Bank',
+                                child: Text('Transfer Bank')),
+                            DropdownMenuItem(
+                                value: 'Cash', child: Text('Cash')),
+                            DropdownMenuItem(
+                                value: 'Cash On Delivery',
+                                child: Text('COD')),
+                          ],
+                          onChanged: (value) {
+                            setState(() {
+                              _paymentMethod = value!;
+                            });
+                          },
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    _buildInput("Catatan Tambahan", _notesCtrl, maxLines: 3),
+                  ],
+                ),
+              ),
             ),
-          ),
-        ],
+            const SizedBox(height: 24),
+
+            // ==========================================
+            // 3. BAGIAN INPUT BARANG
+            // ==========================================
+            const Text("Data Barang",
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            const SizedBox(height: 10),
+            Column(
+              children: List.generate(_items.length, (index) {
+                final item = _items[index];
+                return Column(
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          flex: 3,
+                          child: _buildInput(
+                            "Nama Barang",
+                            item.productCtrl,
+                            onChanged: (value) => _calculateTotal(),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _buildInput("Qty", item.qtyCtrl,
+                              isNumber: true,
+                              onChanged: (value) => _calculateTotal()),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _buildInput("Harga Satuan",
+                              item.priceCtrl,
+                              isNumber: true,
+                              onChanged: (value) => _calculateTotal()),
+                        ),
+                        if (_items.length > 1) ...[
+                          const SizedBox(width: 10),
+                          IconButton(
+                            onPressed: () {
+                              setState(() {
+                                _items[index].dispose();
+                                _items.removeAt(index);
+                                _calculateTotal();
+                              });
+                            },
+                            icon: const Icon(Icons.delete_outline,
+                                color: Colors.redAccent),
+                          ),
+                        ]
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                );
+              }),
+            ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _items.add(_InvoiceItem());
+                  });
+                },
+                icon: const Icon(Icons.add_circle_outline,
+                    color: Color(0xFF11213D)),
+                label: const Text("Tambah Barang",
+                    style: TextStyle(
+                        color: Color(0xFF11213D),
+                        fontWeight: FontWeight.bold)),
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // ==========================================
+            // 4. FITUR PEMBAYARAN (DP / LUNAS)
+            // ==========================================
+            const Text("Status Pembayaran",
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: _paymentStatus,
+                  isExpanded: true,
+                  items: const [
+                    DropdownMenuItem(
+                        value: 'Lunas', child: Text("LUNAS (Bayar Penuh)")),
+                    DropdownMenuItem(
+                        value: 'DP', child: Text("DP (Down Payment)")),
+                  ],
+                  onChanged: (value) {
+                    setState(() {
+                      _paymentStatus = value!;
+                      _calculateTotal(); // Hitung ulang saat status ganti
+                    });
+                  },
+                ),
+              ),
+            ),
+
+            // Munculkan Input DP HANYA JIKA pilih DP
+            if (_paymentStatus == 'DP') ...[
+              const SizedBox(height: 10),
+              _buildInput("Masukkan Nominal DP (Rp)", _dpCtrl,
+                  isNumber: true, onChanged: (v) => _calculateTotal()),
+            ],
+
+            const SizedBox(height: 30),
+
+            // ==========================================
+            // 5. SUMMARY (TOTAL KESELURUHAN)
+            // ==========================================
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                  color: Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.orange)),
+              child: Column(
+                children: [
+                  _buildSummaryRow("Total Harga", _grandTotal),
+                  if (_paymentStatus == 'DP') ...[
+                    const Divider(),
+                    _buildSummaryRow(
+                        "DP Dibayar", double.tryParse(_dpCtrl.text) ?? 0,
+                        color: Colors.green),
+                    const Divider(),
+                    _buildSummaryRow("SISA TAGIHAN", _sisaTagihan,
+                        isBold: true, color: Colors.red),
+                  ] else ...[
+                    const Divider(),
+                    const Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text("Status",
+                            style: TextStyle(
+                                fontSize: 16, fontWeight: FontWeight.bold)),
+                        Text("LUNAS",
+                            style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.green)),
+                      ],
+                    )
+                  ]
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 20),
+            // HARDCODE FOOTER (INFO BANK)
+            const Text("NB: HARGA SUDAH TERMASUK ONGKIR",
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+            const Text(
+                "DETAIL BANK: BCA CAB. SURABAYA\nCV. KIAN RAYA CEMERLANG\nRek: 258-285-8001",
+                style: TextStyle(fontSize: 12)),
+
+            const SizedBox(height: 30),
+            // TOMBOL SIMPAN
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton(
+                onPressed: _createInvoicePdf,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor:
+                      const Color(0xFFF9C895), // Warna orange aksen kamu
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ),
+                child: const Text("Lihat & Cetak Invoice",
+                    style: TextStyle(
+                        color: Colors.black,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16)),
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: OutlinedButton(
+                onPressed: _downloadInvoicePdf,
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Color(0xFF11213D)),
+                  backgroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ),
+                child: const Text("Unduh Invoice PDF",
+                    style: TextStyle(
+                        color: Color(0xFF11213D),
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16)),
+              ),
+            )
+          ],
+        ),
       ),
     );
   }
 
-  Widget _customTextField(
-      String hint, TextEditingController ctrl, IconData? icon,
-      {bool isPhone = false, int maxLines = 1}) {
+  // Widget Helper biar codingan nggak berantakan
+  Widget _buildInput(String label, TextEditingController controller,
+      {bool isNumber = false,
+      bool isReadOnly = false,
+      TextInputType keyboardType = TextInputType.text,
+      int maxLines = 1,
+      Function(String)? onChanged}) {
     return TextField(
-      controller: ctrl,
+      controller: controller,
+      readOnly: isReadOnly,
+      keyboardType: isNumber ? TextInputType.number : keyboardType,
       maxLines: maxLines,
-      keyboardType: isPhone ? TextInputType.number : TextInputType.text,
-      onChanged: (v) => setState(() {}), // Refresh hitungan total
-      style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w500),
+      onChanged: onChanged,
       decoration: InputDecoration(
-        hintText: hint,
-        prefixIcon:
-            icon != null ? Icon(icon, size: 18, color: Colors.grey) : null,
+        labelText: label,
+        floatingLabelBehavior: FloatingLabelBehavior.always,
+        labelStyle: TextStyle(color: Colors.grey.shade700, fontSize: 13),
         filled: true,
-        fillColor: kBackground,
+        fillColor: const Color(0xFFF7F9FB),
         contentPadding:
-            const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
-        border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none),
+            const EdgeInsets.symmetric(vertical: 16, horizontal: 18),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade300, width: 1),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFF11213D), width: 1.3),
+        ),
       ),
+      style: const TextStyle(fontSize: 15),
     );
   }
 
-  Widget _qtyBtn(IconData icon, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(4),
-        decoration: BoxDecoration(
-            color: kPrimary, borderRadius: BorderRadius.circular(6)),
-        child: Icon(icon, color: Colors.white, size: 16),
-      ),
+  // Widget Helper untuk baris Total
+  Widget _buildSummaryRow(String title, double amount,
+      {bool isBold = false, Color color = Colors.black}) {
+    final currencyFormat =
+        NumberFormat.currency(locale: 'id', symbol: 'Rp ', decimalDigits: 0);
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(title,
+            style: TextStyle(
+                fontSize: isBold ? 18 : 16,
+                fontWeight: isBold ? FontWeight.bold : FontWeight.normal)),
+        Text(currencyFormat.format(amount),
+            style: TextStyle(
+                fontSize: isBold ? 18 : 16,
+                fontWeight: FontWeight.bold,
+                color: color)),
+      ],
     );
   }
 }
